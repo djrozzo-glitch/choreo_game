@@ -1,0 +1,9 @@
+name = "everybody-dances-links"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+# Create a KV namespace in Cloudflare, then replace the placeholder below.
+[[kv_namespaces]]
+binding = "DANCES"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
