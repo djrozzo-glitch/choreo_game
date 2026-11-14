@@ -286,22 +286,24 @@ async function deliverDanceLink(url){
 }
 $('shareDance').onclick=async()=>{
  const button=$('shareDance');button.disabled=true;button.textContent='CREATING LINK…';
+ const payload=JSON.stringify(danceData());
+ const endpoints=[location.origin+'/api/dances', 'https://everybody-dances-links.djrozzo.workers.dev/api/dances'];
+ let lastError;
  try{
-  if(DANCE_API_BASE){
+  for(const endpoint of [...new Set(endpoints)]){
    try{
-    const res=await fetch(DANCE_API_BASE.replace(/\/$/,'')+'/api/dances',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(danceData())});
-    if(!res.ok)throw Error('Cloudflare save failed: '+res.status);
+    const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:payload});
+    if(!res.ok)throw Error('Short-link service returned HTTP '+res.status);
     const data=await res.json();
-    if(!data.url||!/^https:\/\//.test(data.url))throw Error('Invalid short URL');
-    await deliverDanceLink(data.url);return;
-   }catch(error){console.warn('Short-link API unavailable; using existing share format',error)}
+    const id=data.id||(/\/d\/([A-Za-z0-9_-]{8,16})(?:[?#]|$)/.exec(data.url||'')||[])[1];
+    if(!id||!/^[A-Za-z0-9_-]{8,16}$/.test(id))throw Error('Short-link service returned no valid dance ID');
+    await deliverDanceLink('https://weirdflex.online/d/'+id);
+    return;
+   }catch(error){lastError=error;console.warn('Dance share endpoint failed:',endpoint,error)}
   }
-  const payload=await packDance(danceData());
-  const url=location.origin+location.pathname+'#dance='+payload;
-  if(url.length>8000)throw Error('Dance too complex for a link');
-  await deliverDanceLink(url);
- }catch(e){console.warn(e);downloadDance();$('hint').textContent='LINK UNAVAILABLE · DANCE FILE DOWNLOADED'}
- finally{button.disabled=false;button.textContent='SHARE DANCE'}
+  $('hint').textContent='SHORT LINK UNAVAILABLE · PLEASE TRY AGAIN';
+  alert('Could not create a short dance link. Please try again later. Your choreography is still saved.\n\n'+(lastError?.message||'Network error'));
+ }finally{button.disabled=false;button.textContent='SHARE DANCE'}
 };
 async function openSharedDance(){
  const hash=location.hash,params=new URLSearchParams(location.search),shortId=params.get('dance');
