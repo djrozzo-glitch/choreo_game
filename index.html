@@ -240,7 +240,7 @@ for(const n of jointNames){const b=bone(n);if(!b)continue;const radius=((n==='Sp
  const parentQ=mid.parent.getWorldQuaternion(new THREE.Quaternion());
  kneeHingeLocal[key]=hinge.applyQuaternion(parentQ.clone().invert()).normalize();
  kneeHingeSign[key]=1;
- }}}initialPose=capture();ready=true;mode='idle';$('status').style.display='none';reset();if(location.hash.startsWith('#dance='))openSharedDance();else try{const saved=localStorage.getItem(choreographyKey);if(saved){const data=JSON.parse(saved);if(validDance(data)){applyDance(data);$('hint').textContent='YOUR SAVED CHOREOGRAPHY IS READY'}}}catch(e){console.warn('Could not restore local choreography',e)}};const onError=e=>{console.error('Model load failed:',e);if(modelURL!==originalModel){console.warn('Falling back to original dancer');loader.load(originalModel,onLoaded,undefined,err=>{$('loading').textContent='COULD NOT LOAD MODEL';console.error(err)})}else $('loading').textContent='COULD NOT LOAD ORIGINAL MODEL'};loader.load(modelURL,onLoaded,undefined,onError)}load();
+ }}}initialPose=capture();ready=true;mode='idle';$('status').style.display='none';reset();if(location.hash.startsWith('#dance=')||new URLSearchParams(location.search).has('dance'))openSharedDance();else try{const saved=localStorage.getItem(choreographyKey);if(saved){const data=JSON.parse(saved);if(validDance(data)){applyDance(data);$('hint').textContent='YOUR SAVED CHOREOGRAPHY IS READY'}}}catch(e){console.warn('Could not restore local choreography',e)}};const onError=e=>{console.error('Model load failed:',e);if(modelURL!==originalModel){console.warn('Falling back to original dancer');loader.load(originalModel,onLoaded,undefined,err=>{$('loading').textContent='COULD NOT LOAD MODEL';console.error(err)})}else $('loading').textContent='COULD NOT LOAD ORIGINAL MODEL'};loader.load(modelURL,onLoaded,undefined,onError)}load();
 function coords(e){const r=renderer.domElement.getBoundingClientRect();mouse.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(mouse,camera)}
 renderer.domElement.addEventListener('pointerdown',e=>{pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===2){const pts=[...pointers.values()];pinchDistance=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);drag=null;cameraDrag=null;renderer.domElement.setPointerCapture(e.pointerId);return}if(!ready||mode==='result')return;if(mode==='play'){cameraDrag={id:e.pointerId,x:e.clientX,y:e.clientY};renderer.domElement.setPointerCapture(e.pointerId);return}coords(e);ray.params.Mesh.threshold=.1;let hit=ray.intersectObjects(handles.map(h=>h.mesh),false)[0];if(!hit&&e.pointerType==='touch'){let nearest=null,best=28;for(const handle of handles){if(!handle.mesh.visible)continue;const point=handle.mesh.position.clone().project(camera);if(point.z< -1||point.z>1)continue;const rect=renderer.domElement.getBoundingClientRect();const px=rect.left+(point.x+1)*rect.width/2,py=rect.top+(1-point.y)*rect.height/2;const distance=Math.hypot(e.clientX-px,e.clientY-py);if(distance<best){best=distance;nearest=handle}}if(nearest)hit={object:nearest.mesh}}if(!hit){cameraDrag={id:e.pointerId,x:e.clientX,y:e.clientY};renderer.domElement.setPointerCapture(e.pointerId);return;}const h=handles.find(h=>h.mesh===hit.object);const normal=camera.getWorldDirection(new THREE.Vector3());const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(normal,h.mesh.position);drag={h,plane,target:h.mesh.position.clone(),pointer:e.pointerId,startX:e.clientX,startY:e.clientY,moved:false,hipStart:h.mesh.position.clone(),hipBase:hips.position.clone(),footAnchors:h.name==='Hips'?Object.fromEntries(['LeftFoot','RightFoot'].map(n=>[n,bone(n)?.getWorldPosition(new THREE.Vector3())]).filter(([,p])=>p)):null,torsoStart:h.name==='Spine1'?{parentWorld:bone('Spine1').parent.getWorldQuaternion(new THREE.Quaternion()),parts:['Spine','Spine1','Spine2'].map((n,i)=>({bone:bone(n),rotation:bone(n)?.quaternion.clone(),weight:[.35,.45,.20][i]})).filter(p=>p.bone)}:null,shoulderStart:h.name.endsWith('Shoulder')?{pivot:h.bone.getWorldPosition(new THREE.Vector3()),tip:bone(h.name.replace('Shoulder','Arm')).getWorldPosition(new THREE.Vector3()),rotation:h.bone.quaternion.clone()}:null};grabs++;renderer.domElement.setPointerCapture(e.pointerId);});renderer.domElement.addEventListener('pointermove',e=>{if(pointers.has(e.pointerId))pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===2){const pts=[...pointers.values()];const d=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);if(pinchDistance>0){cameraDistance=THREE.MathUtils.clamp(cameraDistance*pinchDistance/Math.max(d,1),2.8,10);view()}pinchDistance=d;return}if(cameraDrag&&cameraDrag.id===e.pointerId){azimuth-=(e.clientX-cameraDrag.x)*.007;elevation=THREE.MathUtils.clamp(elevation+(e.clientY-cameraDrag.y)*.005,-.65,1.1);cameraDrag.x=e.clientX;cameraDrag.y=e.clientY;view();return;}if(!drag||e.pointerId!==drag.pointer)return;if(!drag.moved&&Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)<4)return;drag.moved=true;coords(e);const target=new THREE.Vector3();if(ray.ray.intersectPlane(drag.plane,target)){energy+=target.distanceTo(drag.target)*20;drag.target.copy(target);if(['LeftHand','RightHand','LeftForeArm','RightForeArm'].includes(drag.h.name)){if(!drag.filteredTarget)drag.filteredTarget=drag.hipStart.clone();const distance=drag.filteredTarget.distanceTo(target);const alpha=THREE.MathUtils.clamp(.30+distance*.30,.30,.72);drag.filteredTarget.lerp(target,alpha);target.copy(drag.filteredTarget)}const legSafety=['Hips','LeftFoot','RightFoot','LeftLeg','RightLeg'].includes(drag.h.name)?capture():null;if(drag.h.name==='Hips'){const hip=bone('Hips');if(hip){const worldStart=drag.hipStart;const worldDelta=target.clone().sub(worldStart).multiplyScalar(.65);const parent=hip.parent;const origin=parent.worldToLocal(worldStart.clone());const destination=parent.worldToLocal(worldStart.clone().add(worldDelta));const proposed=drag.hipBase.clone().add(destination.sub(origin));const maxDrop=.45/Math.max(modelScale,.001);proposed.y=Math.max(drag.hipBase.y-maxDrop,proposed.y);hip.position.copy(proposed);dancer.updateMatrixWorld(true);stabilizeSupport(drag.footAnchors,5)}}else if(drag.h.name==='Spine1'){const base=drag.torsoStart;if(base){const delta=target.clone().sub(drag.hipStart);const q=base.parentWorld.clone().invert();const localDelta=delta.applyQuaternion(q);const bendX=THREE.MathUtils.clamp(localDelta.z*.65,-.32,.32);const bendZ=THREE.MathUtils.clamp(-localDelta.x*.65,-.38,.38);const twist=THREE.MathUtils.clamp(localDelta.y*.18,-.12,.12);for(const part of base.parts){part.bone.quaternion.copy(part.rotation).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(bendX*part.weight,twist*part.weight,bendZ*part.weight,'XYZ')))}dancer.updateMatrixWorld(true)}}else solveHandle(drag.h.name,target);if(drag.h.name!=='Hips')keepAboveFloor();if(legSafety)applySafeLegPose(legSafety);updateHandles()}});function release(e){pointers.delete(e.pointerId);if(pointers.size<2)pinchDistance=0;if(drag&&e.pointerId===drag.pointer){if(drag.h.name==='Hips')stabilizeSupport(drag.footAnchors,3);drag=null;}if(cameraDrag&&e.pointerId===cameraDrag.id)cameraDrag=null}renderer.domElement.addEventListener('pointerup',release);renderer.domElement.addEventListener('pointercancel',release);renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();cameraDistance=THREE.MathUtils.clamp(cameraDistance+e.deltaY*.004,2.8,10);view()},{passive:false});
 // Beat-grid pose editor: each saved pose occupies two bars in 4/4.
@@ -257,6 +257,8 @@ function applyDance(d){if(!ready||!validDance(d))throw Error('Invalid or incompa
 function danceFile(){return new File([JSON.stringify(danceData())],'everybody-dances-choreography.json',{type:'application/json'})}
 function downloadDance(){const f=danceFile(),u=URL.createObjectURL(f),a=document.createElement('a');a.href=u;a.download=f.name;a.click();setTimeout(()=>URL.revokeObjectURL(u),5000)}
 $('saveDance').onclick=()=>{try{localStorage.setItem(choreographyKey,JSON.stringify(danceData()));$('hint').textContent='CHOREOGRAPHY SAVED ON THIS DEVICE'}catch(e){console.warn(e);downloadDance();$('hint').textContent='LOCAL SAVE UNAVAILABLE · DANCE FILE DOWNLOADED'}$('overlay').classList.remove('show');mode='idle';updateHandles()};
+// Configure after Cloudflare Worker deployment; empty string keeps existing long links working.
+const DANCE_API_BASE='';
 // Compressed, self-contained links work on static GitHub Pages without a database.
 async function packDance(d){
  const bytes=new TextEncoder().encode(JSON.stringify(d));
@@ -276,23 +278,45 @@ async function unpackDance(value){
  const merged=new Uint8Array(size);let pos=0;for(const chunk of chunks){merged.set(chunk,pos);pos+=chunk.length}
  return JSON.parse(new TextDecoder().decode(merged));
 }
+async function deliverDanceLink(url){
+ if(navigator.share){try{await navigator.share({title:'Watch my dance — EVERYBODY DANCES',url});return}catch(e){if(e.name==='AbortError')return}}
+ await navigator.clipboard.writeText(url);$('hint').textContent='DANCE LINK COPIED · SEND IT TO A FRIEND';
+}
 $('shareDance').onclick=async()=>{
+ const button=$('shareDance');button.disabled=true;button.textContent='CREATING LINK…';
  try{
+  if(DANCE_API_BASE){
+   try{
+    const res=await fetch(DANCE_API_BASE.replace(/\/$/,'')+'/api/dances',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(danceData())});
+    if(!res.ok)throw Error('Cloudflare save failed: '+res.status);
+    const data=await res.json();
+    if(!data.url||!/^https:\/\//.test(data.url))throw Error('Invalid short URL');
+    await deliverDanceLink(data.url);return;
+   }catch(error){console.warn('Short-link API unavailable; using existing share format',error)}
+  }
   const payload=await packDance(danceData());
   const url=location.origin+location.pathname+'#dance='+payload;
   if(url.length>8000)throw Error('Dance too complex for a link');
-  if(navigator.share){try{await navigator.share({title:'Watch my dance — EVERYBODY DANCES',url});return}catch(e){if(e.name==='AbortError')return}}
-  await navigator.clipboard.writeText(url);$('hint').textContent='DANCE LINK COPIED · SEND IT TO A FRIEND';
+  await deliverDanceLink(url);
  }catch(e){console.warn(e);downloadDance();$('hint').textContent='LINK UNAVAILABLE · DANCE FILE DOWNLOADED'}
+ finally{button.disabled=false;button.textContent='SHARE DANCE'}
 };
 async function openSharedDance(){
- const hash=location.hash;
- if(!hash.startsWith('#dance='))return;
+ const hash=location.hash,params=new URLSearchParams(location.search),shortId=params.get('dance');
+ if(!hash.startsWith('#dance=')&&!shortId)return;
  try{
-  const data=await unpackDance(hash.slice(7));
+  let data;
+  if(shortId){
+   if(!/^[A-Za-z0-9_-]{8,16}$/.test(shortId))throw Error('Invalid dance ID');
+   const api=params.get('api')||DANCE_API_BASE;
+   if(!api||!/^https:\/\//.test(api))throw Error('Dance API not configured');
+   const res=await fetch(api.replace(/\/$/,'')+'/api/dances/'+shortId);
+   if(!res.ok)throw Error('Dance unavailable: '+res.status);
+   data=await res.json();
+  }else data=await unpackDance(hash.slice(7));
   if(!validDance(data))throw Error('Incompatible choreography');
   applyDance(data);
-  history.replaceState(null,'',location.pathname+location.search);
+  history.replaceState(null,'',location.pathname+(shortId?'':location.search));
   // Start the visual performance immediately. Mobile browsers may require a tap to enable sound.
   $('posePlay').click();
   if(!audioPlaybackActive&&data.track!=='silent')$('hint').textContent='DANCE IS PLAYING · TAP SOUND ON TO ENABLE MUSIC';
