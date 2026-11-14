@@ -258,7 +258,7 @@ function danceFile(){return new File([JSON.stringify(danceData())],'everybody-da
 function downloadDance(){const f=danceFile(),u=URL.createObjectURL(f),a=document.createElement('a');a.href=u;a.download=f.name;a.click();setTimeout(()=>URL.revokeObjectURL(u),5000)}
 $('saveDance').onclick=()=>{try{localStorage.setItem(choreographyKey,JSON.stringify(danceData()));$('hint').textContent='CHOREOGRAPHY SAVED ON THIS DEVICE'}catch(e){console.warn(e);downloadDance();$('hint').textContent='LOCAL SAVE UNAVAILABLE · DANCE FILE DOWNLOADED'}$('overlay').classList.remove('show');mode='idle';updateHandles()};
 // Configure after Cloudflare Worker deployment; empty string keeps existing long links working.
-const DANCE_API_BASE='';
+const DANCE_API_BASE='https://everybody-dances-links.djrozzo.workers.dev';
 // Compressed, self-contained links work on static GitHub Pages without a database.
 async function packDance(d){
  const bytes=new TextEncoder().encode(JSON.stringify(d));
