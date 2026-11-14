@@ -350,35 +350,74 @@ function reviewDance(){
   }
  }finally{restore(original);dancer.updateMatrixWorld(true)}
  if(moments.length<2)return;
- const n=moments.length,avg=(key)=>moments.reduce((sum,m)=>sum+m[key],0)/n;
- const peak=moments.slice(1).reduce((a,b)=>b.movement>a.movement?b:a,moments[1]);
- const still=moments.slice(1).reduce((a,b)=>b.movement<a.movement?b:a,moments[1]);
- const late=peak.index>=Math.ceil((n-1)*.65),early=peak.index<=Math.floor((n-1)*.35);
- const directionChanges=moments.slice(2).filter((m,i)=>{const a=moments[i],b=moments[i+1];return (b.hip.x-a.hip.x)*(m.hip.x-b.hip.x)<-.005}).length;
+ const n=moments.length,avg=key=>moments.reduce((sum,m)=>sum+m[key],0)/n;
+ const transitions=moments.slice(1),moves=transitions.map(m=>m.movement).sort((a,b)=>a-b);
+ const median=moves[Math.floor(moves.length/2)]||.01;
+ const peak=transitions.reduce((a,b)=>b.movement>a.movement?b:a);
+ const still=transitions.reduce((a,b)=>b.movement<a.movement?b:a);
+ const asym=avg('asym'),reach=avg('arms'),energy=avg('movement');
+ const low=moments.filter(m=>m.grounded).length/n;
+ const leans=moments.map(m=>m.lean),leanRange=Math.max(...leans)-Math.min(...leans);
+ const reversals=moments.slice(2).filter((m,i)=>{const p=moments[i],q=moments[i+1];return(q.hip.x-p.hip.x)*(m.hip.x-q.hip.x)<-.005}).length;
+ const peakRatio=peak.index/(n-1);
  const track=$('musicTrack').value;
- const isBroken=track==='broken-glass',isWithin=track==='from-within';
- const mood=isBroken?'nervous, fractured tension':isWithin?'deep, introspective restraint':'unaccompanied physical expression';
- const musical= isBroken
-  ? (avg('asym')>.65||directionChanges>0?'The broken lines and changes of direction amplify the track’s anxious energy.':'The controlled shapes push against the music’s nervous character, creating a deliberate unease.')
-  : isWithin
-  ? (avg('movement')<.8?'The measured transitions leave room for the music’s introspective depth.':'Expansive movement gives the reflective score an unexpected sense of release.')
-  : 'Without a score, the body supplies its own rhythm and silence.';
- const structure=late?'The strongest physical shift arrives near the end, turning the final passage into a climax.':early?'The most dramatic gesture comes early; what follows feels like an afterimage.':'A central surge of movement divides the piece into two contrasting halves.';
- const pause=still.movement<peak.movement*.4?'A quieter transition creates a moment of suspension.':'The movement maintains pressure across successive poses.';
- 
- const eventPool=isBroken
-  ? ['An abrupt gesture reads like a fracture in the choreography.','The dancer appears to hesitate, then resist an invisible force.','The sharpest movement makes the space feel suddenly unstable.']
-  : isWithin
-  ? ['A held shape suggests a thought that cannot quite be spoken.','A small change in weight becomes unexpectedly intimate.','The movement briefly feels like a memory resurfacing.']
-  : ['An unexpected shift changes the emotional temperature.','The stillness becomes a character of its own.','The body seems to question its next direction.'];
- const seed=Math.floor(moments.reduce((a,m)=>a+m.arms*29+m.asym*71+m.movement*113+m.lean*17,0)*100);
- const event=eventPool[Math.abs(seed)%eventPool.length];
- title=isBroken?(avg('asym')>.7?'FAULT LINES':'THE SOUND OF FRACTURE'):isWithin?(avg('arms')>1?'REACHING INWARD':'THINGS LEFT UNSAID'):'THE SPACE BETWEEN';
- const opening='A '+n+'-pose contemporary piece set to '+(isBroken?'“Broken Glass”':isWithin?'“From Within”':'silence')+', shaped by '+mood+'.';
- const observation=avg('arms')>1?'Repeated elevated arms create an insistent reaching motif.':avg('asym')>.65?'Uneven arm positions make asymmetry a recurring motif.':moments.filter(m=>m.grounded).length>=2?'Low, weighted positions keep the body close to the floor.':'The choreography favours subtle shifts over large declarations.';
+ const conditions={
+  short:n<=3,long:n>=6,asymmetric:asym>.55,symmetric:asym<.25,
+  reaching:reach>=1.1,contained:reach<.65,grounded:low>=.5,
+  airborne:low<.25,expansive:energy>.85,restrained:energy<.45,
+  contrast:peak.movement>Math.max(median*1.8,.45),
+  pause:still.movement<Math.max(peak.movement*.38,.15),
+  early:peakRatio<=.35,late:peakRatio>=.65,
+  reversals:reversals>=1,tilt:leanRange>.4,
+  broken:track==='broken-glass',within:track==='from-within',silent:track==='silent'
+ };
+ // Curated review database: each line is eligible only when its observed movement feature is present.
+ const REVIEW_DB={
+  titles:[
+   {when:'broken',lines:['FAULT LINES','A BEAUTIFUL DISORDER','THE EDGE OF CONTROL','AFTER THE IMPACT']},
+   {when:'within',lines:['THINGS LEFT UNSAID','THE WEIGHT OF MEMORY','A QUIET DEPARTURE','SOMETHING UNFINISHED']},
+   {when:'silent',lines:['THE SPACE BETWEEN','AN UNHEARD CONVERSATION','THE BODY REMEMBERS','NO WORDS REQUIRED']},
+   {when:'grounded',lines:['GRAVITY HAS QUESTIONS','CLOSER TO EARTH']},
+   {when:'reaching',lines:['THE DISTANCE BETWEEN US','ALMOST TOUCHING']},
+   {when:'asymmetric',lines:['OFF BALANCE','THE UNFINISHED LINE']}
+  ],
+  openings:[
+   {when:'short',lines:['A miniature that makes every gesture count.','Brief, direct, and surprisingly difficult to forget.','A few movements leave a remarkably long shadow.']},
+   {when:'long',lines:['An extended conversation between impulse and restraint.','A patient sequence that finds meaning in its repetitions.','The work unfolds gradually, letting its contradictions accumulate.']},
+   {when:'contrast',lines:['A sudden change of intensity interrupts the apparent calm.','One explosive transition reshapes everything around it.','The sharpest gesture becomes the hinge of the entire performance.']},
+   {when:'restrained',lines:['Its smallest gestures carry the greatest weight.','Nothing is rushed; the tension lives in what is withheld.']},
+   {when:'expansive',lines:['The body claims the space with restless conviction.','Each transition seems to push against an invisible boundary.']},
+   {lines:['A peculiar little work, full of unexpected choices.','A dance that seems to invent its own rules as it goes.','An intriguing conversation between intention and accident.']}
+  ],
+  details:[
+   {when:'asymmetric',lines:['The uneven arms suggest two competing impulses.','Its crooked silhouettes are more expressive than any perfect line.','The body keeps choosing one side, then questioning that choice.']},
+   {when:'symmetric',lines:['The recurring symmetry feels almost ceremonial.','Balanced shapes give the piece an unexpectedly formal character.']},
+   {when:'reaching',lines:['Raised arms keep searching for something just beyond reach.','The repeated upward gestures turn longing into a physical motif.']},
+   {when:'contained',lines:['With the arms held close, the emotion stays under the skin.','The restrained upper body makes every deviation feel deliberate.']},
+   {when:'grounded',lines:['The weight of the body becomes part of the story.','Low positions lend the movement a stubborn sense of gravity.']},
+   {when:'airborne',lines:['A recurring lightness makes the floor feel optional.','The dancer seems reluctant to settle back into the earth.']},
+   {when:'tilt',lines:['The shifting torso creates a compelling sense of instability.','Each change of inclination suggests a new point of view.']},
+   {when:'reversals',lines:['Changes of direction give the choreography a restless pulse.','The repeated reversals feel like decisions being reconsidered.']},
+   {when:'pause',lines:['One almost-still moment speaks louder than the larger gestures.','A brief suspension gives the audience room to breathe.']},
+   {lines:['The transitions reveal as much as the poses themselves.','Even the awkward moments feel strangely human.','Its charm lies in the friction between control and surprise.']}
+  ],
+  endings:[
+   {when:'late',lines:['The late surge leaves the ending deliciously unresolved.','Its strongest gesture arrives just when the piece seems ready to disappear.']},
+   {when:'early',lines:['The rest of the dance unfolds like an echo of its opening outburst.','After an early climax, every quieter choice gains significance.']},
+   {when:'broken',lines:['Set against Broken Glass, the uncertainty feels electric.','The nervous score turns hesitation into suspense.']},
+   {when:'within',lines:['From Within gives these gestures the intimacy of a private memory.','The reflective music makes even a small movement feel consequential.']},
+   {when:'silent',lines:['In silence, every decision feels wonderfully exposed.','Without music to lean on, the body becomes its own soundtrack.']},
+   {lines:['Not every question needs an answer.','An imperfect performance with a distinct point of view.','The kind of strange beauty that happens by accident.']}
+  ]
+ };
+ const eligible=(section)=>REVIEW_DB[section].filter(item=>!item.when||conditions[item.when]);
+ const pick=(section)=>{const items=eligible(section),entry=items[Math.floor(Math.random()*items.length)];return entry.lines[Math.floor(Math.random()*entry.lines.length)]};
+ const titles=eligible('titles'),titleEntry=titles[Math.floor(Math.random()*titles.length)];
+ title=titleEntry.lines[Math.floor(Math.random()*titleEntry.lines.length)];
+ const observations=[pick('openings'),pick('details'),pick('endings')];
  $('workTitle').textContent=title;
- $('stats').textContent=isBroken?'BROKEN GLASS':isWithin?'FROM WITHIN':'UNACCOMPANIED';
- $('reviewText').textContent=[observation,structure,event].join(' ');
+ $('stats').textContent=track==='broken-glass'?'BROKEN GLASS':track==='from-within'?'FROM WITHIN':'UNACCOMPANIED';
+ $('reviewText').textContent=observations.join(' ');
  $('overlay').classList.add('show');$('posePlay').textContent='PLAY CHOREOGRAPHY';updateHandles();
 }
 
