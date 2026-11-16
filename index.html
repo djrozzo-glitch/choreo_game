@@ -437,7 +437,7 @@ function reviewDance(){
  const observations=[pick('openings'),pick('details'),pick('endings')];
  $('workTitle').textContent=title;
  $('stats').textContent=track==='broken-glass'?'BROKEN GLASS':track==='from-within'?'FROM WITHIN':'UNACCOMPANIED';
- reviewQuote=observations[0];updateCredits();
+ if(!sharedPerformance||!reviewQuote)reviewQuote=observations[0];updateCredits();
  $('reviewText').textContent=observations.join(' ');
  $('overlay').classList.add('show');$('posePlay').textContent='PLAY CHOREOGRAPHY';updateHandles();
 }
@@ -445,7 +445,7 @@ function reviewDance(){
 // Smooth quaternion interpolation between recorded frames, without re-solving IK.
 function blendRecordedPose(a,b,alpha){if(!a)return;if(!b||alpha<=0){restore(a);return}const p={q:[],h:[],root:[]};const q1=new THREE.Quaternion(),q2=new THREE.Quaternion();for(let i=0;i<a.q.length;i++){q1.fromArray(a.q[i]);q2.fromArray(b.q[i]||a.q[i]);p.q.push(q1.slerp(q2,alpha).toArray())}for(let j=0;j<3;j++){p.h[j]=THREE.MathUtils.lerp(a.h[j],b.h[j],alpha);p.root[j]=THREE.MathUtils.lerp((a.root||[0,0,0])[j],(b.root||a.root||[0,0,0])[j],alpha)}restore(p)}
 function replay(){if(poseKeys.length<2)return;mode='idle';$('overlay').classList.remove('show');$('posePlay').click()}
-$('again').onclick=()=>{stopDanceAudio();posePlaying=false;mode='idle';document.body.classList.remove('playing');$('overlay').classList.remove('show');poseKeys.length=0;poseSelected=-1;poseElapsed=0;sharedPerformance=false;reviewQuote='';document.body.classList.remove('shared-performance');updateCredits();$('timer').textContent='00';reset();drawPoseStrip();$('hint').textContent='CREATE YOUR FIRST POSE · SAVE AT LEAST TWO TO DANCE';updateHandles()};$('reset').onclick=reset;$('replay').onclick=replay;
+$('again').onclick=()=>{stopDanceAudio();posePlaying=false;mode='idle';document.body.classList.remove('playing');$('overlay').classList.remove('show');poseKeys.length=0;poseSelected=-1;poseElapsed=0;sharedPerformance=false;creatorName=cleanCreator(localStorage.getItem(creatorKey));reviewQuote='';document.body.classList.remove('shared-performance');updateCredits();$('timer').textContent='00';reset();drawPoseStrip();$('hint').textContent='CREATE YOUR FIRST POSE · SAVE AT LEAST TWO TO DANCE';updateHandles()};$('reset').onclick=reset;$('replay').onclick=replay;
 /* Legacy poster renderer retained for compatibility; poster UI removed. */
 function posterCanvas(){
  const c=document.createElement('canvas');c.width=1080;c.height=1350;
